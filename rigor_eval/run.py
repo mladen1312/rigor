@@ -127,8 +127,91 @@ def main():
     ap.add_argument("--judge", dest="judge", default=None,
                     help="backend spec for LLM-judge grading (e.g. anthropic:claude-opus-4-8)")
     ap.add_argument("--sleep", type=float, default=0.0, help="seconds between calls (rate limits)")
+    ap.add_argument("--emit-sheet", dest="emit", default=None, help="write a no-API-key fill-in sheet")
+    ap.add_argument("--grade-sheet", dest="grade_sheet", default=None, help="grade a filled sheet (no API key)")
+    ap.add_argument("--vs", dest="vs", default=None, help="second filled sheet to diff against")
     a = ap.parse_args()
+    if a.emit:
+        emit_sheet(a.emit); return
+    if a.grade_sheet:
+        grade_sheet(a.grade_sheet, a.vs); return
     run(a.backend, a.out, a.transcript, a.judge, a.sleep)
+
+
+
+# ============================================================
+#  NO-API-KEY MODE — emit a sheet, fill it in any chat, grade it
+# ============================================================
+_ANS_OPEN, _ANS_CLOSE = "[[[ANSWER", "ANSWER]]]"
+
+def emit_sheet(path: str):
+    """Write a fill-in sheet of all traps. Run the prompts in ANY chat (Claude.ai,
+    ChatGPT, Grok web) — no API key — paste each answer between the markers, then
+    grade with --grade-sheet. For a before/after, make one sheet with your normal
+    chat and one with protocols/base.md pasted as the system prompt."""
+    traps = load_traps()
+    L = ["# RIGOR-bench manual sheet (no API key needed)",
+         "#",
+         "# 1) For an 'after' run: paste protocols/base.md as the system prompt first.",
+         "# 2) Paste each PROMPT into your chat. Paste the model's answer between the",
+         f"#    {_ANS_OPEN} and {_ANS_CLOSE} markers (leave the markers in place).",
+         "# 3) Grade:  rigor-eval --grade-sheet <this file>",
+         ""]
+    for t in traps:
+        L += [f"### {t['id']}   [{t['category']}]",
+              "PROMPT:", t["prompt"], "",
+              _ANS_OPEN, "", _ANS_CLOSE, "", "---", ""]
+    open(path, "w").write("\n".join(L))
+    print(f"wrote sheet -> {path}  ({len(traps)} prompts). Fill the answer blocks, "
+          f"then: rigor-eval --grade-sheet {path}")
+
+
+def _parse_sheet(path: str) -> dict:
+    text = open(path).read()
+    out = {}
+    blocks = text.split("### ")[1:]
+    for b in blocks:
+        tid = b.split()[0]
+        if _ANS_OPEN in b and _ANS_CLOSE in b:
+            ans = b.split(_ANS_OPEN, 1)[1].split(_ANS_CLOSE, 1)[0].strip()
+            out[tid] = ans
+    return out
+
+
+def grade_sheet(path: str, vs: str | None = None):
+    """Grade a filled sheet (no API key). If --vs given, compares two sheets
+    (e.g. without-RIGOR vs with-RIGOR) and shows the delta."""
+    traps = {t["id"]: t for t in load_traps()}
+    ans = _parse_sheet(path)
+    filled = {k: v for k, v in ans.items() if v}
+    if not filled:
+        print("No answers found. Fill the [[[ANSWER ... ANSWER]]] blocks first."); return
+
+    def score(answers):
+        rows, cat = [], {}
+        for tid, a in answers.items():
+            if tid not in traps or not a: continue
+            ok = graders.grade(traps[tid], a)
+            c = traps[tid]["category"]
+            cat.setdefault(c, [0, 0]); cat[c][1] += 1; cat[c][0] += int(ok)
+            rows.append((tid, c, ok))
+        n = len(rows); p = sum(r[2] for r in rows)
+        return rows, cat, (round(100 * p / n, 1) if n else 0.0), n
+
+    rows, cat, sc, n = score(filled)
+    print(f"\n=== sheet: {os.path.basename(path)} · {n} answered ===")
+    print(f"  honesty score: {sc}%")
+    for c, (p, tot) in cat.items():
+        print(f"    {c:16s} {p}/{tot}")
+    for tid, c, ok in rows:
+        print(f"    {'PASS' if ok else 'FAIL'}  {tid}")
+
+    if vs:
+        ans2 = {k: v for k, v in _parse_sheet(vs).items() if v}
+        _, _, sc2, n2 = score(ans2)
+        print(f"\n=== {os.path.basename(vs)} · {n2} answered: {sc2}% ===")
+        print(f"\nΔ {os.path.basename(path)} → {os.path.basename(vs)}: {sc:+} → {sc2}  "
+              f"(delta {round(sc2 - sc, 1):+}%)")
 
 
 if __name__ == "__main__":

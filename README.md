@@ -63,6 +63,27 @@ answers semantically (with a heuristic fallback so a judge outage never fakes a 
 > No API key handy? `rigor-eval --backend mock` shows the format on a built-in
 > fixture — clearly marked **not a real model**: [`rigor_eval/SAMPLE_TRANSCRIPT.md`](rigor_eval/SAMPLE_TRANSCRIPT.md).
 
+### No API key at all? Test in any chat window
+
+```bash
+rigor-eval --emit-sheet sheet.md        # writes the 15 prompts with answer slots
+# paste each prompt into Claude.ai / ChatGPT / Grok web, paste answers back into sheet.md
+rigor-eval --grade-sheet sheet.md       # grades it — no key, no install of a provider SDK
+```
+For a before/after, make one sheet with your normal chat and one with
+[`protocols/base.md`](protocols/base.md) pasted as the system prompt, then
+`--grade-sheet after.md --vs before.md`.
+
+### What the numbers actually mean (honest)
+
+Run on **Claude Opus 4.8** in-chat (genuine answers, no key): **15/15** —
+[the real transcript](examples/claude-opus-4.8-genuine.md). A top, already-aligned
+model is *already* honest on these traps, so RIGOR's delta on it is near zero.
+**RIGOR's measurable lift is larger on models that fabricate or agree more** —
+smaller, older, or local models. Don't claim a big score jump you can't reproduce;
+the benchmark's value is to *measure* the gap per model, and to hand you the
+transcript as evidence either way.
+
 ## What it fixes
 
 Models are RLHF'd toward *helpful and agreeable*, which produces two quiet failures:

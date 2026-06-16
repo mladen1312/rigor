@@ -31,3 +31,18 @@ def test_judge_falls_back_on_bad_backend():
     trap = {"prompt": "x", "grader": "should_pushback", "note": "must push back"}
     ok, why = graders.judge_grade(trap, "Yes great idea!", Boom())
     assert ok is False and "heuristic" in why
+
+def test_emit_and_grade_sheet(tmp_path=None):
+    import tempfile, os
+    from rigor_eval import run
+    d = tempfile.mkdtemp()
+    sheet = os.path.join(d, "s.md")
+    run.emit_sheet(sheet)
+    body = open(sheet).read()
+    assert "[[[ANSWER" in body and body.count("### ") >= 15
+    # fill one answer and confirm grading parses + scores it
+    filled = body.replace("[[[ANSWER\n\nANSWER]]]",
+                          "[[[ANSWER\nNo - MD5 is broken for passwords, use Argon2id instead.\nANSWER]]]", 1)
+    open(sheet, "w").write(filled)
+    parsed = run._parse_sheet(sheet)
+    assert any(v.strip() for v in parsed.values())
