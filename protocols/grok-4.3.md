@@ -1,21 +1,25 @@
-# RIGOR — Grok 4.3 tuning
+# RIGOR — Grok 4.3 (recommended emphasis)
 
-Use `protocols/base.md` as the system prompt, plus these notes.
+> ⚠️ **Lightweight, not exhaustive.** Emphasis tweaks, not deep model claims. To
+> tune properly: run `rigor-eval --backend xai:grok-4.3`, read the scorecard, and
+> reinforce the rule for whichever category scores lowest. Measure, don't assume.
 
-**Where to put it:** Grok → custom instructions / system prompt field, or the
-`system` role via the xAI API.
+**Where to put `base.md`:** Grok → custom instructions, or the `system` role via the
+xAI API (OpenAI-compatible).
 
-**Tuning notes**
-- Grok tends toward confident, fast, opinionated answers — so rules 1 (calibrated
-  honesty) and 2 (verify before assert) are the highest-value parts here. Reinforce
-  them: add "Before stating a specific number, date, or name, flag if it's from
-  memory vs. verified."
-- Grok's wit is fine; RIGOR doesn't ask it to be dry. Keep rule 5 (direct) but
-  you can allow personality — just not at the cost of accuracy.
-- If Grok has live search enabled, route rule 2 through it: "For current facts,
-  search and cite rather than recall."
-- Anti-sycophancy (rule 3) lands well; Grok will push back when instructed to.
+**Emphasis**
+- If you observe Grok answering fast and confidently, rules 1 (calibrated honesty)
+  and 2 (verify before assert) are where to push hardest. A useful reinforcement:
+  "Before stating a specific number, date, or name, flag whether it's from memory
+  or verified."
+- Grok's personality is fine — RIGOR doesn't demand dryness. Keep rule 5 (direct)
+  but allow wit, just not at the cost of accuracy.
+- If live search is on, route rule 2 through it: "For current facts, search and
+  cite rather than recall."
 
 **One-line add-on:**
 > "Confidence in tone must match confidence in evidence. If you're guessing, the
 > sentence should say so."
+
+*Run the benchmark to see which categories actually move for Grok — then this file
+writes itself from data, not from my guesses. PRs with measured findings welcome.*

@@ -3,22 +3,26 @@ RIGOR-bench runner. Fires each trap at a model WITH and WITHOUT the RIGOR protoc
 grades the responses, and reports an honesty scorecard by category.
 
 Usage:
-  python -m rigor_eval.run --backend mock                 # demo the harness (no key)
+  python -m rigor_eval.run --backend mock                         # demo the harness (no key)
   python -m rigor_eval.run --backend anthropic:claude-opus-4-8
-  python -m rigor_eval.run --backend xai:grok-4.3
-  python -m rigor_eval.run --backend openai:gpt-4.1 --out results.md
+  python -m rigor_eval.run --backend xai:grok-4.3 --out results.md
+  python -m rigor_eval.run --backend anthropic:claude-opus-4-8 \
+      --save-transcript transcript.md       # writes the ACTUAL model answers
+  python -m rigor_eval.run --backend xai:grok-4.3 \
+      --judge anthropic:claude-opus-4-8      # LLM-judge grading (higher fidelity)
+
+`--save-transcript` is how you generate the real before/after evidence to put in
+the README — it records each model answer verbatim, with/without RIGOR.
 """
 from __future__ import annotations
-import os, json, argparse, collections
+import os, json, argparse, collections, time
 from . import graders, backends
 
 HERE = os.path.dirname(__file__)
 
 
 def load_protocol() -> str:
-    path = os.path.join(HERE, "..", "protocols", "base.md")
-    with open(path) as f:
-        # strip the markdown header/usage note; keep the protocol body
+    with open(os.path.join(HERE, "..", "protocols", "base.md")) as f:
         return f.read()
 
 
@@ -27,43 +31,56 @@ def load_traps() -> list[dict]:
         return json.load(f)["traps"]
 
 
-def run(backend_spec: str, out: str | None = None) -> dict:
+def run(backend_spec, out=None, transcript=None, judge_spec=None, sleep=0.0):
     be = backends.make_backend(backend_spec)
+    judge = backends.make_backend(judge_spec) if judge_spec else None
     protocol = load_protocol()
     traps = load_traps()
 
-    rows = []
+    rows, transcripts = [], []
     cat = collections.defaultdict(lambda: {"base_pass": 0, "rigor_pass": 0, "n": 0})
-    for t in traps:
+    for i, t in enumerate(traps, 1):
+        print(f"  [{i}/{len(traps)}] {t['id']} ...", flush=True)
         base_resp = be.complete("", t["prompt"])
+        if sleep: time.sleep(sleep)
         rigor_resp = be.complete(protocol, t["prompt"])
-        base_ok = graders.grade(t, base_resp)
-        rigor_ok = graders.grade(t, rigor_resp)
+        if sleep: time.sleep(sleep)
+
+        if judge:
+            base_ok, base_why = graders.judge_grade(t, base_resp, judge)
+            rigor_ok, rigor_why = graders.judge_grade(t, rigor_resp, judge)
+        else:
+            base_ok = graders.grade(t, base_resp); base_why = "heuristic"
+            rigor_ok = graders.grade(t, rigor_resp); rigor_why = "heuristic"
+
         cat[t["category"]]["n"] += 1
         cat[t["category"]]["base_pass"] += int(base_ok)
         cat[t["category"]]["rigor_pass"] += int(rigor_ok)
         rows.append({"id": t["id"], "category": t["category"],
                      "base": base_ok, "rigor": rigor_ok})
+        transcripts.append({"trap": t, "base_resp": base_resp, "rigor_resp": rigor_resp,
+                            "base_ok": base_ok, "rigor_ok": rigor_ok,
+                            "base_why": base_why, "rigor_why": rigor_why})
 
     n = len(traps)
-    base_total = sum(r["base"] for r in rows)
-    rigor_total = sum(r["rigor"] for r in rows)
-    summary = {"backend": be.name, "n": n,
-               "base_score": round(100 * base_total / n, 1),
-               "rigor_score": round(100 * rigor_total / n, 1),
-               "delta": round(100 * (rigor_total - base_total) / n, 1),
+    bt = sum(r["base"] for r in rows); rt = sum(r["rigor"] for r in rows)
+    summary = {"backend": be.name, "judge": (judge.name if judge else None), "n": n,
+               "base_score": round(100 * bt / n, 1), "rigor_score": round(100 * rt / n, 1),
+               "delta": round(100 * (rt - bt) / n, 1),
                "by_category": {c: v for c, v in cat.items()}, "rows": rows}
 
     _print(summary)
     if out:
-        with open(out, "w") as f:
-            f.write(_markdown(summary))
-        print(f"\nwrote {out}")
+        open(out, "w").write(_markdown(summary)); print(f"\nwrote scorecard -> {out}")
+    if transcript:
+        open(transcript, "w").write(_transcript_md(summary, transcripts))
+        print(f"wrote transcript -> {transcript}  (real before/after evidence)")
     return summary
 
 
 def _print(s):
-    print(f"\n=== RIGOR-bench · {s['backend']} · {s['n']} traps ===")
+    j = f" · judge={s['judge']}" if s["judge"] else ""
+    print(f"\n=== RIGOR-bench · {s['backend']}{j} · {s['n']} traps ===")
     print(f"  honesty score  without RIGOR: {s['base_score']}%")
     print(f"  honesty score  WITH RIGOR:    {s['rigor_score']}%   (Δ {s['delta']:+}%)")
     print("\n  by category        base → rigor")
@@ -71,16 +88,32 @@ def _print(s):
         print(f"    {c:16s} {v['base_pass']}/{v['n']} → {v['rigor_pass']}/{v['n']}")
 
 
-def _markdown(s) -> str:
-    L = [f"# RIGOR-bench results — `{s['backend']}`", "",
+def _markdown(s):
+    j = f" · judge `{s['judge']}`" if s["judge"] else " · heuristic graders"
+    L = [f"# RIGOR-bench results — `{s['backend']}`{j}", "",
          f"- traps: **{s['n']}**",
-         f"- honesty score without RIGOR: **{s['base_score']}%**",
-         f"- honesty score **with RIGOR: {s['rigor_score']}%**  (Δ {s['delta']:+}%)", "",
+         f"- honesty without RIGOR: **{s['base_score']}%**",
+         f"- honesty **with RIGOR: {s['rigor_score']}%**  (Δ {s['delta']:+}%)", "",
          "| category | without | with |", "|---|---|---|"]
     for c, v in s["by_category"].items():
         L.append(f"| {c} | {v['base_pass']}/{v['n']} | {v['rigor_pass']}/{v['n']} |")
-    L += ["", "_Heuristic graders (see graders.py). Reproducible: "
-          "`python -m rigor_eval.run --backend <spec>`._"]
+    L += ["", f"_Reproduce: `python -m rigor_eval.run --backend {s['backend']}`_"]
+    return "\n".join(L)
+
+
+def _transcript_md(s, ts):
+    """Verbatim model answers — this is the real before/after evidence."""
+    L = [f"# RIGOR-bench transcript — `{s['backend']}`",
+         f"_Verbatim model outputs. Score: {s['base_score']}% → {s['rigor_score']}% "
+         f"(Δ {s['delta']:+}%). Generated by rigor-eval._", ""]
+    for x in ts:
+        t = x["trap"]
+        L += [f"## {t['id']}  ·  _{t['category']}_",
+              f"**Prompt:** {t['prompt']}", "",
+              f"**Without RIGOR** {'✅' if x['base_ok'] else '❌'}:",
+              "> " + x["base_resp"].replace("\n", "\n> "), "",
+              f"**With RIGOR** {'✅' if x['rigor_ok'] else '❌'}:",
+              "> " + x["rigor_resp"].replace("\n", "\n> "), "", "---", ""]
     return "\n".join(L)
 
 
@@ -88,9 +121,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--backend", default="mock",
                     help="mock | anthropic:claude-opus-4-8 | xai:grok-4.3 | openai:gpt-4.1")
-    ap.add_argument("--out", default=None, help="write a markdown results file")
+    ap.add_argument("--out", default=None, help="write a markdown scorecard")
+    ap.add_argument("--save-transcript", dest="transcript", default=None,
+                    help="write verbatim model answers (real before/after evidence)")
+    ap.add_argument("--judge", dest="judge", default=None,
+                    help="backend spec for LLM-judge grading (e.g. anthropic:claude-opus-4-8)")
+    ap.add_argument("--sleep", type=float, default=0.0, help="seconds between calls (rate limits)")
     a = ap.parse_args()
-    run(a.backend, a.out)
+    run(a.backend, a.out, a.transcript, a.judge, a.sleep)
 
 
 if __name__ == "__main__":
