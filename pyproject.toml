@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rigor-bench"
+version = "0.2.0"
+description = "Reproducible benchmark for prompt-induced honesty in LLMs (RIGOR protocol)"
+requires-python = ">=3.9"
+dependencies = []          # stdlib only; backends call provider HTTP APIs directly
+
+[project.scripts]
+rigor-eval = "rigor_eval.run:main"
+
+[tool.setuptools]
+packages = ["rigor_eval"]
