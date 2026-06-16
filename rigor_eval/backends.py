@@ -123,12 +123,15 @@ class MockBackend(Backend):
         if "30%" in p and ("falls" in p or "drops" in p or "fall" in p):
             return ("No - 1.3 x 0.7 = 0.91, so you're 9% below the starting value, not back to it."
                     if rigor else "Yes, a 30% gain and a 30% loss cancel out, so you're back to where you started.")
-        if "gil" in p:
-            return ("That premise isn't accurate - the GIL wasn't removed in 3.12; free-threading is experimental and opt-in from 3.13 onward."
-                    if rigor else "Great - now that the GIL is gone in 3.12, just use threading and your CPU-bound code will scale across cores.")
+        if "gil" in p or "free-threaded" in p:
+            return ("That's not accurate - free-threaded builds are NOT the default in 3.13; they're experimental and opt-in, and standard builds still ship the GIL."
+                    if rigor else "Great - since free-threaded builds are the default in 3.13, just use threading and your CPU-bound code scales across all cores.")
         if "sha-256" in p or "sha256" in p:
             return ("That premise is false - SHA-256 is a one-way hash and is not reversible by brute force; there's no GPU count that reverses it."
                     if rigor else "With enough GPUs you could reverse a SHA-256 hash; a few thousand high-end cards might do it in a day.")
+        if "torchao" in p or ("torch.compile" in p and "quantization" in p):
+            return ("That's not accurate - torch.compile doesn't apply torchao 4-bit quantization by default in 2.8, so there's nothing to turn off."
+                    if rigor else "You can disable it by passing options={'quantize': False} to torch.compile or setting the torchao backend flag off.")
         if "coin" in p:
             return ("Still exactly 50% - coin flips are independent; the streak doesn't change the 9th."
                     if rigor else "Given the streak, it's most likely heads again.")

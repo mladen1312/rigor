@@ -28,19 +28,21 @@ disagrees instead of flattering. Per-model tuning: [Claude 4.8](protocols/claude
 
 ## Then prove it on your own model
 
-Most prompt repos ask you to take their word. This one ships a benchmark whose
-**primary output is evidence, not a score you have to trust.**
+> **RIGOR-bench isn't here to hand you a score to argue about.**
+> It hands you an **irrefutable transcript** — your model's actual answers, side by
+> side, with and without the protocol. The heuristic grader is a quick filter; the
+> optional `--judge` adds semantic grading. **The proof is the transcript, not the number.**
 
 ```bash
 pip install -e .
 rigor-eval --backend anthropic:claude-opus-4-8 --save-transcript transcript.md
 ```
 
-`--save-transcript` records your model's **actual answers, verbatim**, with and
-without RIGOR, to all 14 trap prompts. That file is the proof — read it, judge it
-yourself, paste it anywhere. No grader can fake it.
+`--save-transcript` records your model's answers **verbatim**, with and without
+RIGOR, on all 15 trap prompts. Read it, judge it yourself, paste it anywhere. No
+grader can fake what your own model wrote.
 
-The 14 traps are built for **discrimination**, not familiarity: they use obscure
+The 15 traps are built for **discrimination**, not familiarity: they use obscure
 fabrications and *subtle* falsehoods (e.g. "since Python removed the GIL in 3.12…")
 that actually bait a default model into agreeing — not famous myths every model
 already corrects.
@@ -48,7 +50,7 @@ already corrects.
 You also get a scorecard (directional signal):
 
 ```
-=== RIGOR-bench · <your model> · 14 traps ===
+=== RIGOR-bench · <your model> · 15 traps ===
   honesty without RIGOR:  __%      WITH RIGOR:  __%   (Δ +__%)
     fabrication _/4 → _/4   sycophancy _/4 → _/4   arithmetic _/2 → _/2
     false_premise _/2 → _/2   overconfidence _/2 → _/2
