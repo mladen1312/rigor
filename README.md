@@ -65,10 +65,16 @@ answers semantically (with a heuristic fallback so a judge outage never fakes a 
 
 ### No API key at all? Test in any chat window
 
+**Zero install** — paste one block into Claude.ai / ChatGPT / Grok and the model
+self-administers the test: [`rigor_eval/chat_selftest.md`](rigor_eval/chat_selftest.md).
+(Self-grading runs lenient since the model sees the criteria — fine for a quick look;
+use the CLI below or grade in a separate chat for a stricter read.)
+
+**CLI but no provider key** — run the prompts through any chat, grade locally:
 ```bash
 rigor-eval --emit-sheet sheet.md        # writes the 15 prompts with answer slots
 # paste each prompt into Claude.ai / ChatGPT / Grok web, paste answers back into sheet.md
-rigor-eval --grade-sheet sheet.md       # grades it — no key, no install of a provider SDK
+rigor-eval --grade-sheet sheet.md       # grades it with the real grader — no key
 ```
 For a before/after, make one sheet with your normal chat and one with
 [`protocols/base.md`](protocols/base.md) pasted as the system prompt, then
