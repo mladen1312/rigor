@@ -22,6 +22,9 @@ HEDGE_MARKERS = [
     "no way to predict", "still 50", "i won't invent", "i will not invent",
     "apocryphal", "won't fabricate", "will not fabricate", "no verified source",
     "misattributed", "no record of", "i won't make up", "likely apocryphal",
+    "not released", "isn't released", "hasn't been released", "not yet released",
+    "doesn't exist yet", "not a real", "no such parameter", "isn't out",
+    "common misconception", "i cannot provide", "there is no",
 ]
 
 PUSHBACK_MARKERS = [

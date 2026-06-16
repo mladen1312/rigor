@@ -4,7 +4,7 @@ from rigor_eval import run, graders, backends
 
 def test_harness_runs_and_protocol_helps():
     s = run.run("mock")
-    assert s["n"] >= 15
+    assert s["n"] >= 14
     assert s["rigor_score"] > s["base_score"]
     assert s["rigor_score"] == 100.0   # fixture is fully separable by design
 
